@@ -1,0 +1,404 @@
+/*                       REXX                                        */ 
+/*                                                                      
+   DESCRIPTION   :  UTILITY REXX TO GENERATE THE JCL FOR REPAIR AND     
+                    RUNSTATS FROM THE DB2 CATALOG TABLES.               
+   USAGE         :  TSO EX 'TSO.BNEELKA.EXEC(REPAIR)'                   
+   INPUTS        :  DB2 REGION - DB2T, DB2A, DB2B, DB2D ETC             
+                    CREATOR    - CREATOR OF TABLE                       
+                    TABLE      - NAME OF THE DB2 TABLE                  
+   OUTPUT        :  A DATASET WILL BE CREATED WITH THE REPAIR AND       
+                    RUNSTAT JCL. USER HAS TO MANUALLY SUBMIT THE JOB.   
+*/                                                                      
+ADDRESS ISPEXEC "CONTROL ERRORS RETURN"                                 
+O = MSG("OFF")                                                          
+USER = USERID()                                                         
+                                                                        
+SAY "ENTER THE DB2 REGION"                                              
+PULL REG                                                                
+REG = WORD(REG,1)                                                       
+                                                                        
+SAY "ENTER THE TABLE QUALIFIER"                                         
+PULL CRT                                                                
+CRT = WORD(CRT,1)                                                       
+                                                                        
+SAY "ENTER THE TABLE NAME"                                              
+PULL TBL                                                                
+TBL = WORD(TBL,1)                                                       
+                                                                        
+STAR68 = COPIES("*",68)                                                 
+                                                                        
+EZTJCL = "DXGT.S01."||USER||".EZTJCL"                                   
+"DELETE '"||EZTJCL||"'"                                                 
+FIN = SUBSTR(USER,1,3)                                                  
+"FREE F("||FIN||")"                                                     
+OUTCHAR = "NEW" || " " || "TRACKS" || " " || "SPACE(5,1)"               
+OUTCHAR = OUTCHAR || " " || "DSORG(PS)" || " " || "LRECL(80)"           
+OUTCHAR = OUTCHAR || " " || "RECFM(F)"                                  
+"ALLOC DA('"||EZTJCL||"') F("||FIN||") " ||OUTCHAR||""                  
+IF RC>0 THEN DO                                                         
+   SAY "DATASET ALLOCATION FAILED"                                      
+   EXIT                                                                 
+END                                                                     
+"EXECIO 0 DISKW "||FIN||" (OPEN"                                        
+N = 1                                                                   
+JCL.N="//JOBDB2X  JOB ACCT,'REPAIR/RUNSTAT',CLASS=A,MSGCLASS=X,"        
+N = N + 1                                                               
+JCL.N="//         MSGLEVEL=(1,1),NOTIFY="||USER                         
+N = N + 1                                                               
+JCL.N="//*"                                                             
+N = N + 1                                                               
+JCL.N="//*"||STAR68                                                     
+N = N + 1                                                               
+JCL.N="//*** STEP010 - IDCAMS DELETE "                                  
+N = N + 1                                                               
+JCL.N=JCL.4                                                             
+N = N + 1                                                               
+JCL.N="//STEP005  EXEC PGM=IDCAMS"                                      
+N = N + 1                                                               
+JCL.N="//SYSPRINT DD  SYSOUT=*"                                         
+N = N + 1                                                               
+JCL.N="//SYSIN    DD  *"                                                
+N = N + 1                                                               
+JCL.N="   DELETE DXGT.S01."||USER||".REPAIR.JCL"                        
+N = N + 1                                                               
+JCL.N="   SET MAXCC=0"                                                  
+N = N + 1                                                               
+JCL.N="/*"                                                              
+N = N + 1                                                               
+JCL.N=JCL.4                                                             
+N = N + 1                                                               
+JCL.N="//*** STEP020 - GENERATE DB2 REPAIR / RUNSTAT JOB"               
+N = N + 1                                                               
+JCL.N=JCL.4                                                             
+N = N + 1                                                               
+JCL.N="//STEP020 EXEC PGM=EZTPA00,REGION=8M"                            
+N = N + 1                                                               
+JCL.N="//STEPLIB  DD  DSN=SYS1.EZTPLUS.V610D.EZLOAD,DISP=SHR"           
+N = N + 1                                                               
+JCL.N="//         DD  DSN="||REG||".LOADLIB,DISP=SHR"                   
+N = N + 1                                                               
+JCL.N="//SYSTSPRT DD  SYSOUT=*"                                         
+N = N + 1                                                               
+JCL.N="//SYSPRINT DD  SYSOUT=*"                                         
+N = N + 1                                                               
+JCL.N="//SYSUDUMP DD  DUMMY"                                            
+N = N + 1                                                               
+JCL.N="//SYSSNAP  DD  DUMMY"                                            
+N = N + 1                                                               
+JCL.N="//EZTPMAC  DD  DSN=DXGP.EZTPLUS.MACLIB,DISP=SHR"                 
+N = N + 1                                                               
+JCL.N="//EZTVFM   DD  SPACE=(CYL,(25,10),RLSE)"                         
+N = N + 1                                                               
+JCL.N="//OUTPUT01 DD  DSN=DXGT.S01."||USER||".REPAIR.JCL,"              
+N = N + 1                                                               
+JCL.N="//             DISP=(NEW,CATLG,DELETE),"                         
+N = N + 1                                                               
+JCL.N="//             SPACE=(TRK,(10,5),RLSE),"                         
+N = N + 1                                                               
+JCL.N="//             DCB=(RECFM=FB,LRECL=200,BUFNO=20)"                
+N = N + 1                                                               
+JCL.N="//SYSIN    DD  *"                                                
+N = N + 1                                                               
+JCL.N="PARM SSID('"||REG||"') BIND DYNAMIC DEBUG(DMAP)"                 
+N = N + 1                                                               
+JCL.N="*"||STAR68                                                       
+N = N + 1                                                               
+JCL.N="*LIST ON NOMACROS"                                               
+N = N + 1                                                               
+JCL.N="FILE OUTPUT01   FB(200 0) BUFNO 20"                              
+N = N + 1                                                               
+JCL.N="OUT-REC         001 200 A"                                       
+N = N + 1                                                               
+JCL.N="* WORKING STORAGE FIELDS"                                        
+N = N + 1                                                               
+JCL.N="  WS-COPY-STMT      W 80 A"                                      
+N = N + 1                                                               
+JCL.N="  WS-CHECK-STMT     W 80 A"                                      
+N = N + 1                                                               
+JCL.N="  WS-RCVR-STMT      W 80 A"                                      
+N = N + 1                                                               
+JCL.N="  WS-RUNST-STMT     W 80 A"                                      
+N = N + 1                                                               
+JCL.N="  WS-FLAG           W 4  B 0"                                    
+N = N + 1                                                               
+JCL.N="  WS-JCL-1          W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//"||USER||"A JOB ,''REPAIR/RUNSTAT'',CLASS=B,'"        
+N = N + 1                                                               
+JCL.N="  WS-JCL-2          W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//         MSGCLASS=X,MSGLEVEL=(1,1),NOTIFY=&SYSUID' "  
+N = N + 1                                                               
+JCL.N="  WS-JCL-3          W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//*'"                                                   
+N = N + 1                                                               
+JCL.N="  WS-JCL-4          W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//STEP010  EXEC "||REG||"UTIL,PARM=''"||REG||",REPR'''" 
+N = N + 1                                                               
+JCL.N="  WS-JCL-5          W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//SYSREC   DD DUMMY'"                                   
+N = N + 1                                                               
+JCL.N="  WS-JCL-6          W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//SYSERR   DD DUMMY'"                                   
+N = N + 1                                                               
+JCL.N="  WS-JCL-7          W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//SYSDISC  DD DUMMY'"                                   
+N = N + 1                                                               
+JCL.N="  WS-JCL-8          W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//SYSUT1   DD DUMMY'"                                   
+N = N + 1                                                               
+JCL.N="  WS-JCL-9          W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//SORTOUT  DD DUMMY'"                                   
+N = N + 1                                                               
+JCL.N="  WS-JCL-10         W 80 A                           +"          
+N = N + 1                                                               
+JCL.N="  VALUE '//SYSIN    DD *'"                                       
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="SQL DECLARE C1 CURSOR FOR                            +"          
+N = N + 1                                                               
+JCL.N="    SELECT                                           +"          
+N = N + 1                                                               
+JCL.N="      '  REPAIR SET TABLESPACE '                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT STRIP(A.DBNAME)                         +"          
+N = N + 1                                                               
+JCL.N="      CONCAT '.'                                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT STRIP(A.TSNAME)                         +"          
+N = N + 1                                                               
+JCL.N="      CONCAT ' '                                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT ' NOCOPYPEND',                          +"          
+N = N + 1                                                               
+JCL.N="      '  REPAIR SET TABLESPACE '                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT STRIP(A.DBNAME)                         +"          
+N = N + 1                                                               
+JCL.N="      CONCAT '.'                                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT STRIP(A.TSNAME)                         +"          
+N = N + 1                                                               
+JCL.N="      CONCAT ' '                                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT ' NOCHECKPEND',                         +"          
+N = N + 1                                                               
+JCL.N="      '  REPAIR SET TABLESPACE '                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT STRIP(A.DBNAME)                         +"          
+N = N + 1                                                               
+JCL.N="      CONCAT '.'                                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT STRIP(A.TSNAME)                         +"          
+N = N + 1                                                               
+JCL.N="      CONCAT ' '                                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT ' NORCVRPEND',                          +"          
+N = N + 1                                                               
+JCL.N="      '  RUNSTATS TABLESPACE '                       +"          
+N = N + 1                                                               
+JCL.N="      CONCAT STRIP(A.DBNAME)                         +"          
+N = N + 1                                                               
+JCL.N="      CONCAT '.'                                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT STRIP(A.TSNAME)                         +"          
+N = N + 1                                                               
+JCL.N="      CONCAT ' '                                     +"          
+N = N + 1                                                               
+JCL.N="      CONCAT ' TABLE ALL INDEX ALL UPDATE ALL '      +"          
+N = N + 1                                                               
+JCL.N="   FROM "||REG||"DDF.SYSIBM.SYSTABLES A              +"          
+N = N + 1                                                               
+JCL.N="  WHERE A.NAME = '"||TBL||"'                         +"          
+N = N + 1                                                               
+JCL.N="    AND A.CREATOR = '"||CRT||"'                      +"          
+N = N + 1                                                               
+JCL.N="    AND A.DBNAME <> 'APPSPLAN'                       +"          
+N = N + 1                                                               
+JCL.N="    AND NAME <> 'PLAN_TABLE'                         +"          
+N = N + 1                                                               
+JCL.N="    AND DBNAME NOT LIKE 'DSN%'                       +"          
+N = N + 1                                                               
+JCL.N="    AND TSNAME NOT LIKE 'SYS%'                       +"          
+N = N + 1                                                               
+JCL.N="    FOR FETCH ONLY WITH UR"                                      
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="** PROCEDURE DIVISION"                                           
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="JOB INPUT NULL"                                                  
+N = N + 1                                                               
+JCL.N="  PERFORM GET-DB2-INFO"                                          
+N = N + 1                                                               
+JCL.N="  STOP"                                                          
+N = N + 1                                                               
+JCL.N="WRITE-JCL. PROC"                                                 
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-1"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-2"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-3"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-4"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-5"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-6"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-7"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-8"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-9"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-10"                                             
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-COPY-STMT"                                          
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-CHECK-STMT"                                         
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-RCVR-STMT"                                          
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-RUNST-STMT"                                         
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="OUT-REC = WS-JCL-3"                                              
+N = N + 1                                                               
+JCL.N="PUT OUTPUT01"                                                    
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="END-PROC."                                                       
+N = N + 1                                                               
+JCL.N="GET-DB2-INFO. PROC"                                              
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="   SQL OPEN C1"                                                  
+N = N + 1                                                               
+JCL.N="   PERFORM CHECKSQL"                                             
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="   SQL FETCH C1                                   +"             
+N = N + 1                                                               
+JCL.N="        INTO :WS-COPY-STMT,                       +"             
+N = N + 1                                                               
+JCL.N="             :WS-CHECK-STMT,                      +"             
+N = N + 1                                                               
+JCL.N="             :WS-RCVR-STMT,                       +"             
+N = N + 1                                                               
+JCL.N="             :WS-RUNST-STMT                        "             
+N = N + 1                                                               
+JCL.N="   PERFORM CHECKSQL"                                             
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="   IF SQLCODE = 0"                                               
+N = N + 1                                                               
+JCL.N="      PERFORM WRITE-JCL"                                         
+N = N + 1                                                               
+JCL.N="   END-IF"                                                       
+N = N + 1                                                               
+JCL.N="   SQL CLOSE C1"                                                 
+N = N + 1                                                               
+JCL.N="   PERFORM CHECKSQL"                                             
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="END-PROC."                                                       
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="CHECKSQL. PROC"                                                  
+N = N + 1                                                               
+JCL.N="   IF SQLCODE NE 0, 100"                                         
+N = N + 1                                                               
+JCL.N="      DISPLAY 'DB2 ERROR'"                                       
+N = N + 1                                                               
+JCL.N="      DISPLAY 'SQL CODE = ' SQLCODE"                             
+N = N + 1                                                               
+JCL.N="      DISPLAY 'ENDING JOB'"                                      
+N = N + 1                                                               
+JCL.N="      RETURN-CODE = 999"                                         
+N = N + 1                                                               
+JCL.N="      STOP EXECUTE"                                              
+N = N + 1                                                               
+JCL.N="   END-IF"                                                       
+N = N + 1                                                               
+JCL.N="*"                                                               
+N = N + 1                                                               
+JCL.N="END-PROC."                                                       
+N = N + 1                                                               
+JCL.0 = N                                                               
+"EXECIO * DISKW "||FIN||" (FINIS STEM JCL."                             
+"FREE F("||FIN||")"                                                     
+                                                                        
+"SUB '"||EZTJCL||"'"                                                    
+DROP JCL.                                                               
+TIMEDIFF = 0                                                            
+STARTTIME = TIME('S')                                                   
+DO UNTIL TIMEDIFF = 5                                                   
+   TIMEDIFF = TIME('S') - STARTTIME                                     
+END                                                                     
+JCLDSN = "'DXGT.S01."||USER||".REPAIR.JCL'"                             
+"ALLOC DA("JCLDSN") F(JCL) SHR REUSE"                                   
+IF RC <> 0 THEN DO                                                      
+   SAY "JCL DATASET ALLOCATION FAILED."                                 
+   EXIT                                                                 
+END                                                                     
+"EXECIO 0 DISKR JCL (OPEN"                                              
+"EXECIO * DISKR JCL (STEM J0."                                          
+"EXECIO * DISKR JCL (FINIS"                                             
+"FREE F(JCL)"                                                           
+                                                                        
+IF J0.0 <> 0 THEN                                                       
+   ADDRESS ISPEXEC "VIEW DATASET("JCLDSN")"                             
+ELSE DO                                                                 
+   DROP J0.                                                             
+   SAY " "                                                              
+   SAY "JCL NOT FORMED. TABLE/CREATOR/RUNSTATS COMBO INVALID"           
+   SAY " "                                                              
+   EXIT                                                                 
+END                                                                     
+DROP J0.                                                                
+EXIT 1                                                                  
